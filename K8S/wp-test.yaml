@@ -1,35 +1,165 @@
+# Persisten volume ile kaybolmasını istemediğimiz verileri tutarız.
 apiVersion: v1
-kind: PersistenVolumeClaim
+kind: PersistentVolumeClaim
 metadata:
-  name: mysql-test-claim
-  namespace: test
+  name: mysql-test-claim               # Persistent Volume Claim ismini verdik.
+  namespace: test                      # Test namespace'inde çalışmasını ayarladık.
   labels:
     tier: test
     app: mysql
 spec:
-  accessModes:
-    - ReadWriteOnce
-  volumeMode: Filesystem
-  resources:
-    requests:
-      storage: 5Gİ
+  accessModes:                         # PVC, bir kullanıcı tarafından storage için yapılan istektir. Kullanıcı belirlediği boyutta, erişim tipinde ve izinlerle Persistent Volume kaynağına talepte bulunur
+    - ReadWriteOnce                    # ReadWriteOnce, ReadOnlyMany veya ReadWriteMany değerlerinden birini alabilir.
+  volumeMode: Filesystem               #
+  resources:                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+    requests:                          #
+      storage: 5Gi                     #
 
 ---
 apiVersion: v1
-kind: PersistenVolumeClaim
+kind: PersistentVolumeClaim
 metadata:
-  name: wp-test-claim
+  name: wp-test-claim                  # Persistent Volume Claim ismini verdik.
+  namespace: test                      # Test namespace'inde çalışmasını ayarladık.
+  labels:
+    tier: test
+    app: wordpress
+spec:
+  accessModes:                         # PVC, bir kullanıcı tarafından storage için yapılan istektir. Kullanıcı belirlediği boyutta, erişim tipinde ve izinlerle Persistent Volume kaynağına talepte bulunur
+    - ReadWriteOnce                    # ReadWriteOnce, ReadOnlyMany veya ReadWriteMany değerlerinden birini alabilir.
+  volumeMode: Filesystem               #
+  resources:                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+    requests:                          #
+      storage: 5Gi                     #
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment                            # Deployment ismi
+  namespace: test                                   # Namespace ismi
+  labels:                                           # Mysql deployment'ımızı labeled yaptık.
+    tier: test
+    app: mysql
+spec:
+  selector:
+    matchLabels:
+      tier: test
+      app: mysql
+  strategy:
+    type: Recreate                                 # Her deployment'ta yeniden oluşturulmasını istiyoruz.
+  template:
+    metadata:
+      labels:
+        tier: test
+        app: mysql
+    spec:
+      containers:
+      - name: mysql-test                          # Container ismi 
+        image: mysql:5.6                          # İmaj ismi, versiyonu
+        env:                                      # Environment değerlerini mysql imajında belirtilen isimler ile birlikte ekledik. Secret key'deki değerler daha önce oluşturduğumuz secret'tan gelir.
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-test-secret
+                key: MYSQL_ROOT_PASSWORD
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-test-secret
+                key: MYSQL_PASSWORD
+          - name: MYSQL_DATABASE
+            valueFrom:
+              secretKeyRef:
+                name: mysql-test-secret
+                key: MYSQL_DATABASE
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: mysql-test-secret
+                key: MYSQL_USER
+        resources:                                 # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+          limits:                                  # Kaynak kısıtlamasını limits prop'u altında yaparız.
+            memory: "1Gi"                          # Memory kullanımını 1Gİ ile kısıtladık.
+            cpu: "250m"                            # CPU kullanımını 250m ile kısıtladık
+        ports:
+        - containerPort: 3306                      # Container'ı 3306'dan expose ederek dış dünyaya açmasını belirttik.
+          name: mysql-test-port                    # Port'umuza isim bilgisini verdik.
+        volumeMounts:
+          - name: mysql-test-pv                    # VolumeMounth ismini belirttik.
+            mountPath: /var/lib/mysql             # Oluşturduğumuz bilgileri tutacağımız yeri belirtiyoruz. Bu yer mysql için özeldir, dockerhub mysql imajından alınmalıdır.
+      volumes:
+      - name: mysql-test-pv                        # Volume oluşturarak ismini belirtiyoruz.
+        persistentVolumeClaim:
+          claimName: mysql-test-claim              # Bu volume'ü yukarda oluşturduğumuz volumeclaim ile besliyoruz.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wp-deployment
   namespace: test
   labels:
     tier: test
     app: wordpress
 spec:
-  accessModes:
-    - ReadWriteOnce
-  volumeMode: Filesystem
-  resources:
-    requests:
-      storage: 5Gİ
+  selector:
+    matchLabels:
+      tier: test 
+      app: wordpress
+  strategy:
+      type: Recreate                                         # Her deployment'ta yeniden oluşturulmasını istiyoruz.
+  template:
+    metadata:
+      labels:
+        tier: test
+        app: wordpress
+    spec:
+      containers:
+      - name: wp-test                                        # Container ismi
+        image: wordpress:latest                              # İmaj ismi
+        env:                                                 # Environment değerlerini wordpress imajında belirtilen isimler ile birlikte ekledik. Secret key'deki değerler daha önce oluşturduğumuz secret'tan gelir.
+        - name: WORDPRESS_DB_HOST
+          value: mysql-test-service
+        - name: WORDPRESS_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-test-secret
+              key: MYSQL_USER
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-test-secret
+              key: MYSQL_PASSWORD
+        - name: WORDPRESS_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mysql-test-secret
+              key: MYSQL_DATABASE
+        resources:                                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+          limits:                                            # Kaynak kısıtlamasını limits prop'u altında yaparız.
+            memory: "1Gi"                                    # Memory kullanımını 1Gİ ile kısıtladık.
+            cpu: "250m"                                      # CPU kullanımını 250m ile kısıtladık
+        ports:
+        - containerPort: 80                                  # Container'ı 80'dan expose ederek dış dünyaya açmasını belirttik.
+          name: wp-test-port                                 # Port'umuza isim bilgisini verdik.
+        volumeMounts:
+          - name: wp-test-pv                                 # VolumeMounth ismini belirttik.
+            mountPath: /var/www/html                         # Oluşturduğumuz bilgileri tutacağımız yeri belirtiyoruz. Bu yer wordpress için özeldir, dockerhub wordpress imajından alınmalıdır.
+      volumes:
+        - name: wp-test-pv                                   # Volume oluşturarak ismini belirtiyoruz.
+          persistentVolumeClaim:
+            claimName: wp-test-claim                         # Bu volume'ü yukarda oluşturduğumuz volumeclaim ile besliyoruz. 
+      affinity:                                              # Belirtilen uygulamaları aynı node üzerinde çalıştırmak istersek affinity'nin podaffinity'sini kullanıyoruz.
+        podAffinity:                                         # Yandaki kodun anlamı deploy edilen uygulamalardaki label'ları mysql olanlarla aynı node üzerinde deploy et.
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - mysql
+            topologyKey: kubernetes.io/hostname
 
 ---
 apiVersion: v1

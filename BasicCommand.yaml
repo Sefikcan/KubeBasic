@@ -23,4 +23,7 @@ kubectl label node minikube-m02 tier=production
 
 # test namespace'inde mysql için Opak(generic) tipli bir secret oluşturur.
 kubectl create secret generic -name mysql-test-secret -n test --from-file=MYSQL_ROOT_PASSWORD=./K8S/mysql_root_password.txt --from-file=MYSQL_USER=./K8S/mysql_user.txt --from-file=MYSQL_PASSWORD=./K8S/mysql_password.txt --from-file=MYSQL_DATABASE=./K8S/mysql_database.txt
-kubectl create secret generic -name mysql-test-secret -n production --from-file=MYSQL_ROOT_PASSWORD=./K8S/mysql_root_password.txt --from-file=MYSQL_USER=./K8S/mysql_user.txt --from-file=MYSQL_PASSWORD=./K8S/mysql_password.txt --from-file=MYSQL_DATABASE=./K8S/mysql_database.txt
+kubectl create secret generic -name mysql-production-secret -n production --from-file=MYSQL_ROOT_PASSWORD=./K8S/mysql_root_password.txt --from-file=MYSQL_USER=./K8S/mysql_user.txt --from-file=MYSQL_PASSWORD=./K8S/mysql_password.txt --from-file=MYSQL_DATABASE=./K8S/mysql_database.txt
+
+# Port yönlendirmesi ile kurduğun deployment'a erişebilirsin
+kubectl port-forward deployment/wp-deployment -n test 8080:80

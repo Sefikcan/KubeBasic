@@ -1,0 +1,51 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wp-test-ingress                                   # ingress'imizin adı
+  labels:                                                 # ingress'imizi label'ladık.
+    tier: test
+    app: wordpress
+  namespace: test                                         # test namespace'i üzerinde olacak
+  annotations:                                            # nginx annotations ayarlamaları
+    kubernates.io/ingress.class: nginx
+    nginx.ingress.kubernates.io/ssl.redirect: "false"
+    nginx.ingress.kubernates.io/rewrite-target: /
+spec:
+  rules:
+  - host: testblog.example.com                            # Bu adrese gelen istekler wp-test-service'ine yönlendirilir.
+    http:
+      paths:
+      - pathType: Prefix                                  #
+        path: "/"
+        backend:
+          service:
+            name: wp-test-service                         
+            port: 
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wp-production-ingress                             # ingress'imizin adı
+  labels:                                                 # ingress'imizi label'ladık.
+    tier: production
+    app: wordpress
+  namespace: production                                   # production namespace'i üzerinde olacak
+  annotations:                                            # nginx annotations ayarlamaları
+    kubernates.io/ingress.class: nginx  
+    nginx.ingress.kubernates.io/ssl.redirect: "false"
+    nginx.ingress.kubernates.io/rewrite-target: /
+spec:
+  rules:
+  - host: companyblog.example.com                         # Bu adrese gelen istekler wp-production-service'ine yönlendirilir.
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: wp-production-service
+            port: 
+              number: 80
+
+# Bu host dosyalarını kendi bilgisayarında çalıştırmak için host dosyana bilgileri eklemen lazım!!

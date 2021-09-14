@@ -1,0 +1,210 @@
+# Persisten volume ile kaybolmasını istemediğimiz verileri tutarız.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-production-claim         # Persistent Volume Claim ismini verdik.
+  namespace: production                # production namespace'inde çalışmasını ayarladık.
+  labels:
+    tier: production
+    app: mysql
+spec:
+  accessModes:                         # PVC, bir kullanıcı tarafından storage için yapılan istektir. Kullanıcı belirlediği boyutta, erişim tipinde ve izinlerle Persistent Volume kaynağına talepte bulunur
+    - ReadWriteOnce                    # ReadWriteOnce, ReadOnlyMany veya ReadWriteMany değerlerinden birini alabilir.
+  volumeMode: Filesystem               #
+  resources:                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+    requests:                          #
+      storage: 5Gi                     #
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wp-production-claim            # Persistent Volume Claim ismini verdik.
+  namespace: production                # production namespace'inde çalışmasını ayarladık.
+  labels:
+    tier: production
+    app: wordpress
+spec:
+  accessModes:                         # PVC, bir kullanıcı tarafından storage için yapılan istektir. Kullanıcı belirlediği boyutta, erişim tipinde ve izinlerle Persistent Volume kaynağına talepte bulunur
+    - ReadWriteOnce                    # ReadWriteOnce, ReadOnlyMany veya ReadWriteMany değerlerinden birini alabilir.
+  volumeMode: Filesystem               #
+  resources:                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+    requests:                          #
+      storage: 5Gi                     #
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment                            # Deployment ismi
+  namespace: production                             # Namespace ismi
+  labels:                                           # Mysql deployment'ımızı labeled yaptık.
+    tier: production
+    app: mysql
+spec:
+  selector:
+    matchLabels:
+      tier: production
+      app: mysql
+  strategy:
+    type: Recreate                                 # Her deployment'ta yeniden oluşturulmasını istiyoruz.
+  template:
+    metadata:
+      labels:
+        tier: production
+        app: mysql
+    spec:
+      containers:
+      - name: mysql-production                    # Container ismi 
+        image: mysql:5.6                          # İmaj ismi, versiyonu
+        env:                                      # Environment değerlerini mysql imajında belirtilen isimler ile birlikte ekledik. Secret key'deki değerler daha önce oluşturduğumuz secret'tan gelir.
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-production-secret
+                key: MYSQL_ROOT_PASSWORD
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-production-secret
+                key: MYSQL_PASSWORD
+          - name: MYSQL_DATABASE
+            valueFrom:
+              secretKeyRef:
+                name: mysql-production-secret
+                key: MYSQL_DATABASE
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: mysql-production-secret
+                key: MYSQL_USER
+        resources:                                 # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+          limits:                                  # Kaynak kısıtlamasını limits prop'u altında yaparız.
+            memory: "1Gi"                          # Memory kullanımını 1Gİ ile kısıtladık.
+            cpu: "250m"                            # CPU kullanımını 250m ile kısıtladık
+        ports:
+        - containerPort: 3306                      # Container'ı 3306'dan expose ederek dış dünyaya açmasını belirttik.
+          name: mysql-prod-port              # Port'umuza isim bilgisini verdik.
+        volumeMounts:
+          - name: mysql-production-pv              # VolumeMounth ismini belirttik.
+            mountPath: /var/lib/mysql              # Oluşturduğumuz bilgileri tutacağımız yeri belirtiyoruz. Bu yer mysql için özeldir, dockerhub mysql imajından alınmalıdır.
+      nodeSelector:
+        tier: production
+      tolerations:
+        - key: "tier"
+          operator: "Equal"
+          value: "production"
+          effect: "NoSchedule"  
+      volumes:
+      - name: mysql-production-pv                  # Volume oluşturarak ismini belirtiyoruz.
+        persistentVolumeClaim:
+          claimName: mysql-production-claim        # Bu volume'ü yukarda oluşturduğumuz volumeclaim ile besliyoruz.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wp-deployment
+  namespace: production
+  labels:
+    tier: production
+    app: wordpress
+spec:
+  selector:
+    matchLabels:
+      tier: production 
+      app: wordpress
+  strategy:
+      type: Recreate                                         # Her deployment'ta yeniden oluşturulmasını istiyoruz.
+  template:
+    metadata:
+      labels:
+        tier: production
+        app: wordpress
+    spec:
+      containers:
+      - name: wp-production                                  # Container ismi
+        image: wordpress:latest                              # İmaj ismi
+        env:                                                 # Environment değerlerini wordpress imajında belirtilen isimler ile birlikte ekledik. Secret key'deki değerler daha önce oluşturduğumuz secret'tan gelir.
+        - name: WORDPRESS_DB_HOST
+          value: mysql-production-service
+        - name: WORDPRESS_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-production-secret
+              key: MYSQL_USER
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-production-secret
+              key: MYSQL_PASSWORD
+        - name: WORDPRESS_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mysql-production-secret
+              key: MYSQL_DATABASE
+        resources:                                           # CPU VE Memory kullanım kısıtlarını belirtmek için kullanırız.
+          limits:                                            # Kaynak kısıtlamasını limits prop'u altında yaparız.
+            memory: "1Gi"                                    # Memory kullanımını 1Gİ ile kısıtladık.
+            cpu: "250m"                                      # CPU kullanımını 250m ile kısıtladık
+        ports:
+        - containerPort: 80                                  # Container'ı 80'dan expose ederek dış dünyaya açmasını belirttik.
+          name: wp-prod-port                           # Port'umuza isim bilgisini verdik.
+        volumeMounts:
+          - name: wp-production-pv                           # VolumeMounth ismini belirttik.
+            mountPath: /var/www/html                         # Oluşturduğumuz bilgileri tutacağımız yeri belirtiyoruz. Bu yer wordpress için özeldir, dockerhub wordpress imajından alınmalıdır.
+      nodeSelector:
+        tier: production                                     # Deploy için kısıt koyuyoruz, burada nodeSelector'ü production olan node seçilir.
+      tolerations:                                           # Bu değere eşit olan varsa schedule edilir.
+        - key: "tier"
+          operator: "Equal"
+          value: "production"
+          effect: "NoSchedule"  
+      volumes:
+        - name: wp-production-pv                             # Volume oluşturarak ismini belirtiyoruz.
+          persistentVolumeClaim:
+            claimName: wp-production-claim                   # Bu volume'ü yukarda oluşturduğumuz volumeclaim ile besliyoruz. 
+      affinity:                                              # Belirtilen uygulamaları aynı node üzerinde çalıştırmak istersek affinity'nin podaffinity'sini kullanıyoruz.
+        podAffinity:                                         # Yandaki kodun anlamı deploy edilen uygulamalardaki label'ları mysql olanlarla aynı node üzerinde deploy et.
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - mysql
+            topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-production-service       # MySQL için oluşturduğumuz servisimizin ismi
+  namespace: production                # production namespace'inde bu servisin oluşturulmasını istiyoruz.
+  labels:
+    tier: production
+    app: mysql
+spec:
+  selector:
+    tier: production
+    app: mysql
+  ports:                              # 3306'dan gelen port bilgisini içerde 3306'ya yönlendirmesini istiyoruz.
+    - port: 3306
+      targetPort: 3306
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wp-production-service               # Wordpress için oluşturduğumuz servisimizin ismi
+  namespace: production                     # production namespace'inde bu servisin oluşturulmasını istiyoruz.
+  labels:
+    tier: production
+    app: wordpress
+spec:
+  selector:
+    tier: production
+    app: wordpress
+  ports:                               # 80'dan gelen port bilgisini içerde 80'ya yönlendirmesini istiyoruz.
+    - port: 80
+      targetPort: 80
