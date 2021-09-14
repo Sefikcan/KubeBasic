@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: PersistenVolumeClaim
+metadata:
+  name: mysql-test-claim
+  namespace: test
+  labels:
+    tier: test
+    app: mysql
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 5Gİ
+
+---
+apiVersion: v1
+kind: PersistenVolumeClaim
+metadata:
+  name: wp-test-claim
+  namespace: test
+  labels:
+    tier: test
+    app: wordpress
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 5Gİ
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-test-service             # MySQL için oluşturduğumuz servisimizin ismi
+  namespace: test                      # test namespace'inde bu servisin oluşturulmasını istiyoruz.
+  labels:
+    tier: test
+    app: mysql
+spec:
+  selector:
+    tier: test
+    app: mysql
+  ports:                              # 3306'dan gelen port bilgisini içerde 3306'ya yönlendirmesini istiyoruz.
+    - port: 3306
+      targetPort: 3306
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wp-test-service               # Wordpress için oluşturduğumuz servisimizin ismi
+  namespace: test                     # test namespace'inde bu servisin oluşturulmasını istiyoruz.
+  labels:
+    tier: test
+    app: wordpress
+spec:
+  selector:
+    tier: test
+    app: wordpress
+  ports:                               # 80'dan gelen port bilgisini içerde 80'ya yönlendirmesini istiyoruz.
+    - port: 80
+      targetPort: 80

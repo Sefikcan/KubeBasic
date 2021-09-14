@@ -1,0 +1,26 @@
+minikube start --nodes 5 # 5 node'lu kubernates cluster'ı kurulumunu yapar.
+
+create namespace --name test # test isminde namespace oluşturur.
+create namespace --name prod # prod isminde namespace oluşturur.
+
+# rolebinding yaml bilgilerine oluşturma işlemini gerçekleştirir.
+kubectl apply -f ./K8S/jr-prod-rb.yaml
+kubectl apply -f ./K8S/jr-test-rb.yaml
+kubectl apply -f ./K8S/sr-cluster-rb.yaml
+kubectl apply -f ./K8S/sr-prod-rb.yaml
+kubectl apply -f ./K8S/sr-test-rb.yaml
+
+# minikube ingress'i aktifleştirir
+minikube addons enable ingress 
+
+# 3 cluster'ı sadece production ortamında deploy edecek şekilde ayarladık ve label ekledik.
+kubectl taint node minikube-m02 tier=production:NoSchedule
+kubectl taint node minikube-m03 tier=production:NoSchedule
+kubectl taint node minikube-m04 tier=production:NoSchedule
+kubectl label node minikube-m04 tier=production
+kubectl label node minikube-m03 tier=production
+kubectl label node minikube-m02 tier=production
+
+# test namespace'inde mysql için Opak(generic) tipli bir secret oluşturur.
+kubectl create secret generic -name mysql-test-secret -n test --from-file=MYSQL_ROOT_PASSWORD=./K8S/mysql_root_password.txt --from-file=MYSQL_USER=./K8S/mysql_user.txt --from-file=MYSQL_PASSWORD=./K8S/mysql_password.txt --from-file=MYSQL_DATABASE=./K8S/mysql_database.txt
+kubectl create secret generic -name mysql-test-secret -n production --from-file=MYSQL_ROOT_PASSWORD=./K8S/mysql_root_password.txt --from-file=MYSQL_USER=./K8S/mysql_user.txt --from-file=MYSQL_PASSWORD=./K8S/mysql_password.txt --from-file=MYSQL_DATABASE=./K8S/mysql_database.txt
