@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment
+  labels:
+    app: k8s
+  namespace: production
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: k8s
+  strategy:                                        # Update strategy'sini istenildiği için kullandık
+    type: RollingUpdate
+    rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 2                                 # Aynı anda max 2 pod update edebileceğini set ettik.
+  template:
+    metadata:
+      labels:
+        app: k8s
+    spec:
+      containers:
+      - name: k8s
+        image: sefikcankanber/k8s:v1
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /hc
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /rd
+            port: 80
+          initialDelaySeconds: 20
+          periodSeconds: 3
+      nodeSelector:
+        tier: production
+      tolerations:
+      - key: "tier"
+        operator: "Equal"
+        value: "production"
+        effect: "NoSchedule"
+

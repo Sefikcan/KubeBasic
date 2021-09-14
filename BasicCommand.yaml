@@ -27,3 +27,15 @@ kubectl create secret generic -name mysql-production-secret -n production --from
 
 # Port yönlendirmesi ile kurduğun deployment'a erişebilirsin
 kubectl port-forward deployment/wp-deployment -n test 8080:80
+
+# Load Balancer ile dış dünyaya expose eder
+kubectl expose deployment k8s-deployment --type=LoadBalancer -n production
+
+# Bir deployment'i 3 replikaya indirir.
+kubectl scale deployment k8s-deployment --replicas=3 -n production
+
+# Bir deployment'i 10 replikaya çıkarır
+kubectl scale deployment k8s-deployment --replicas=10 -n production
+
+# Bir deployment'taki image'ı değiştirir.
+kubectl set image deployment/k8s-deployment k8s=sefikcankanber/k8s:v2 -n production
